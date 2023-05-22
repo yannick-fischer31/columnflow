@@ -510,7 +510,7 @@ class MLModelTrainingMixin(MLModelMixinBase):
 
         # apply calibrators_groups and default_calibrator from the config
         calibrators = tuple(
-            ConfigTask.resolve_config_default_and_groups(
+            AnalysisTask.resolve_config_default_and_groups(
                 config_inst,
                 calibrators[i],
                 default_str="default_calibrator",
@@ -555,7 +555,7 @@ class MLModelTrainingMixin(MLModelMixinBase):
 
         # use config defaults
         selectors = tuple(
-            ConfigTask.resolve_config_default(
+            AnalysisTask.resolve_config_default(
                 config_inst,
                 selectors[i],
                 "default_selector",
@@ -598,7 +598,7 @@ class MLModelTrainingMixin(MLModelMixinBase):
 
         # apply producers_groups and default_producer from the config
         producers = tuple(
-            ConfigTask.resolve_config_default_and_groups(
+            AnalysisTask.resolve_config_default_and_groups(
                 config_inst,
                 producers[i],
                 default_str="default_producer",
@@ -673,38 +673,6 @@ class MLModelTrainingMixin(MLModelMixinBase):
 
     def store_parts(self) -> law.util.InsertableDict:
         parts = super().store_parts()
-        # since MLTraining is no CalibratorsMixin, SelectorMixin, ProducerMixin, ConfigTask,
-        # all these parts are missing in the `store_parts`
-
-        configs_repr = "__".join(self.configs[:5])
-
-        if len(self.configs) > 5:
-            configs_repr += f"_{law.util.create_hash(self.configs[5:])}"
-
-        parts.insert_after("task_family", "configs", configs_repr)
-
-        for label, fct_names in [
-            ("calib", self.calibrators),
-            ("sel", tuple((sel,) for sel in self.selectors)),
-            ("prod", self.producers),
-        ]:
-            if not fct_names or not any(fct_names):
-                fct_names = ["none"]
-            elif len(set(fct_names)) == 1:
-                # when functions are the same per config, only use them once
-                fct_names = fct_names[0]
-                n_fct_per_config = str(len(fct_names))
-            else:
-                # when functions differ between configs, flatten
-                n_fct_per_config = "".join(str(len(x)) for x in fct_names)
-                fct_names = tuple(fct_name for fct_names_cfg in fct_names for fct_name in fct_names_cfg)
-
-            part = "__".join(fct_names[:2])
-
-            if len(fct_names) > 2:
-                part += f"_{n_fct_per_config}_{law.util.create_hash(fct_names[2:])}"
-
-            parts.insert_before("version", label, f"{label}__{part}")
 
         if self.ml_model_inst:
             parts.insert_before("version", "ml_model", f"ml__{self.ml_model_inst.cls_name}")

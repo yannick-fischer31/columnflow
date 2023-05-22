@@ -6,6 +6,8 @@ Generic tools and base tasks that are defined along typical objects in an analys
 
 from __future__ import annotations
 
+from typing import Any
+
 import os
 import enum
 import importlib
@@ -277,6 +279,52 @@ class AnalysisTask(BaseTask, law.SandboxTask):
 
         return law.util.make_unique(object_names)
 
+    @classmethod
+    def resolve_config_default(
+        cls,
+        container: od.Config,
+        param: str,
+        default_str: str | None = None,
+    ) -> str | None:
+        """
+        Applies the default value identified by *default_str* in the *container*,
+        if no *param* is given.
+        """
+        # expand default when param is empty
+        if not param or param == law.NO_STR:
+            param = container.x(default_str, None) if default_str else None
+
+        return param
+
+    @classmethod
+    def resolve_config_default_and_groups(
+        cls,
+        container: od.AuxDataMixin,
+        param: tuple[str],
+        default_str: str | None = None,
+        groups_str: str | None = None,
+    ) -> tuple[str]:
+        """
+        Resolves tuple of inputs *param* by using groups identified by *groups_str* and
+        defined in the *container* that map a string to a tuple of strings.
+        If *param* is empty, the default identified by *default_str* in the config is returned.
+        """
+        # expand default when param is empty
+        if not param or param == law.NO_STR:
+            param = container.x(default_str, None) if default_str else None
+            if not param:
+                return ()
+
+        # expand to groups
+        if default_str and (param_groups := container.x(groups_str, {})):
+            values = []
+            for val in law.util.make_list(param):
+                values.extend(param_groups.get(val, [val]))
+            return tuple(values)
+
+        # return the param as is
+        return law.util.make_tuple(param)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -448,52 +496,6 @@ class ConfigTask(AnalysisTask):
 
         return kwargs
 
-    @classmethod
-    def resolve_config_default(
-        cls,
-        config_inst: od.Config,
-        param: str,
-        default_str: str | None = None,
-    ) -> str | None:
-        """
-        Applies the default value identified by *default_str* in the *config_inst*,
-        if no *param* is given.
-        """
-        # expand default when param is empty
-        if not param or param == law.NO_STR:
-            param = config_inst.x(default_str, None) if default_str else None
-
-        return param
-
-    @classmethod
-    def resolve_config_default_and_groups(
-        cls,
-        config_inst: od.Config,
-        param: tuple[str],
-        default_str: str | None = None,
-        groups_str: str | None = None,
-    ) -> tuple[str]:
-        """
-        Resolves tuple of inputs *param* by using groups identified by *groups_str* and
-        defined in the *config_inst* that map a string to a tuple of strings.
-        If *param* is empty, the default identified by *default_str* in the config is returned.
-        """
-        # expand default when param is empty
-        if not param or param == law.NO_STR:
-            param = config_inst.x(default_str, None) if default_str else None
-            if not param:
-                return ()
-
-        # expand to groups
-        if default_str and (param_groups := config_inst.x(groups_str, {})):
-            values = []
-            for val in law.util.make_list(param):
-                values.extend(param_groups.get(val, [val]))
-            return tuple(values)
-
-        # return the param as is
-        return law.util.make_tuple(param)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -507,6 +509,227 @@ class ConfigTask(AnalysisTask):
         parts.insert_after("task_family", "config", self.config_inst.name)
 
         return parts
+
+
+class MultiConfigTask(AnalysisTask):
+
+    configs = law.CSVParameter(
+        default=(default_config,),
+        description="comma-separated names of analysis configs to use; default: '{default_config}'",
+    )
+
+    @classmethod
+    def resolve_configs(
+        cls,
+        params: dict[str, Any],
+    ) -> tuple[str]:
+        if "analysis_inst" not in params:
+            return ()
+
+        return cls.resolve_config_default_and_groups(
+            params["analysis_inst"],
+            params.get("configs"),
+            default_str="default_config",
+            groups_str="config_groups",
+        )
+
+    def resolve_param_values(cls, params):
+        params = super().resolve_param_values(params)
+
+        params["configs"] = cls.resolve_configs(params)
+
+        return params
+
+    def store_parts(self) -> law.util.InsertableDict:
+        parts = super().store_parts()
+
+        configs_repr = "__".join(self.configs[:5])
+
+        if len(self.configs) > 5:
+            configs_repr += f"_{law.util.create_hash(self.configs[5:])}"
+
+        parts.insert_after("task_family", "configs", configs_repr)
+
+
+class MultiConfigCSPMixin(MultiConfigTask):
+    calibrators = law.MultiCSVParameter(
+        default=(),
+        description="multiple comma-separated sequences of names of calibrators to apply, "
+        "separated by ':'; each sequence corresponds to a config in --configs; when empty, the "
+        "'default_calibrator' setting of each config is used if set, or the model is expected to "
+        "fully define the calibrators it requires upstream; empty default",
+    )
+    selectors = law.CSVParameter(
+        default=(),
+        description="comma-separated names of selectors to apply; each selector corresponds to a "
+        "config in --configs; when empty, the 'default_selector' setting of each config is used if "
+        "set, or the ml model is expected to fully define the selector it uses requires upstream; "
+        "empty default",
+    )
+    producers = law.MultiCSVParameter(
+        default=(),
+        description="multiple comma-separated sequences of names of producers to apply, "
+        "separated by ':'; each sequence corresponds to a config in --configs; when empty, the "
+        "'default_producer' setting of each config is used if set, or ml model is expected to "
+        "fully define the producers it requires upstream; empty default",
+    )
+
+    @classmethod
+    def resolve_calibrators(
+        cls,
+        config_insts: tuple(od.Config),
+        params: dict[str, Any],
+    ) -> tuple[tuple[str]]:
+        calibrators = params.get("calibrators") or ((),)
+
+        # broadcast to configs
+        n_configs = len(config_insts)
+        if len(calibrators) == 1 and n_configs != 1:
+            calibrators = tuple(calibrators * n_configs)
+
+        # apply calibrators_groups and default_calibrator from the config
+        calibrators = tuple(
+            ConfigTask.resolve_config_default_and_groups(
+                config_inst,
+                calibrators[i],
+                default_str="default_calibrator",
+                groups_str="calibrator_groups",
+            )
+            for i, config_inst in enumerate(config_insts)
+        )
+
+        # validate sequence length
+        if len(calibrators) != n_configs:
+            raise Exception(
+                f"Task '{cls.task_family}' uses {n_configs} configs but received "
+                f"{len(calibrators)} calibrators",
+            )
+
+        return calibrators
+
+    @classmethod
+    def resolve_selectors(
+        cls,
+        config_insts: tuple(od.Config),
+        params: dict[str, Any],
+    ) -> tuple[str]:
+        selectors = params.get("selectors") or (None,)
+
+        # broadcast to configs
+        n_configs = len(config_insts)
+        if len(selectors) == 1 and n_configs != 1:
+            selectors = tuple(selectors * n_configs)
+
+        # use config defaults
+        selectors = tuple(
+            ConfigTask.resolve_config_default(
+                config_inst,
+                selectors[i],
+                "default_selector",
+            )
+            for i, config_inst in enumerate(config_insts)
+        )
+
+        # validate sequence length
+        if len(selectors) != n_configs:
+            raise Exception(
+                f"Task '{cls.task_family}' uses {n_configs} configs but received "
+                f"{len(selectors)} selectors",
+            )
+
+        return selectors
+
+    @classmethod
+    def resolve_producers(
+        cls,
+        config_insts: tuple(od.Config),
+        params: dict[str, Any],
+    ) -> tuple[tuple[str]]:
+        producers = params.get("producers") or ((),)
+
+        # broadcast to configs
+        n_configs = len(config_insts)
+        if len(producers) == 1 and n_configs != 1:
+            producers = tuple(producers * n_configs)
+
+        # apply producers_groups and default_producer from the config
+        producers = tuple(
+            ConfigTask.resolve_config_default_and_groups(
+                config_inst,
+                producers[i],
+                default_str="default_producer",
+                groups_str="producer_groups",
+            )
+            for i, config_inst in enumerate(config_insts)
+        )
+
+        # validate number of sequences
+        if len(producers) != n_configs:
+            raise Exception(
+                f"Task '{cls.task_family}' uses {n_configs} configs but received "
+                f"{len(producers)} producer sequences",
+            )
+
+        return producers
+
+    @classmethod
+    def resolve_param_values(cls, params: dict[str, Any]) -> dict[str, Any]:
+        params = super().resolve_param_values(params)
+
+        if "analysis_inst" in params and "ml_model" in params:
+            analysis_inst = params["analysis_inst"]
+            ml_model_inst = cls.get_ml_model_inst(params["ml_model"], analysis_inst)
+            params["ml_model_inst"] = ml_model_inst
+
+            # resolve configs
+            _configs = params.get("configs", ())
+            params["configs"] = tuple(ml_model_inst.training_configs(list(_configs)))
+            if not params["configs"]:
+                raise Exception(
+                    f"Task '{cls.task_family}' received configs '{_configs}' to define "
+                    "training configs, but did not define any",
+                )
+            ml_model_inst._set_configs(params["configs"])
+
+            # resolve calibrators
+            params["calibrators"] = cls.resolve_calibrators(ml_model_inst, params)
+
+            # resolve selectors
+            params["selectors"] = cls.resolve_selectors(ml_model_inst, params)
+
+            # resolve producers
+            params["producers"] = cls.resolve_producers(ml_model_inst, params)
+
+            # call the model's setup hook
+            ml_model_inst._setup()
+
+        return params
+
+    def store_parts(self) -> law.util.InsertableDict:
+        parts = super().store_parts()
+
+        for label, fct_names in [
+            ("calib", self.calibrators),
+            ("sel", tuple((sel,) for sel in self.selectors)),
+            ("prod", self.producers),
+        ]:
+            if not fct_names or not any(fct_names):
+                fct_names = ["none"]
+            elif len(set(fct_names)) == 1:
+                # when functions are the same per config, only use them once
+                fct_names = fct_names[0]
+                n_fct_per_config = str(len(fct_names))
+            else:
+                # when functions differ between configs, flatten
+                n_fct_per_config = "".join(str(len(x)) for x in fct_names)
+                fct_names = tuple(fct_name for fct_names_cfg in fct_names for fct_name in fct_names_cfg)
+
+            part = "__".join(fct_names[:2])
+
+            if len(fct_names) > 2:
+                part += f"_{n_fct_per_config}_{law.util.create_hash(fct_names[2:])}"
+
+            parts.insert_before("version", label, f"{label}__{part}")
 
 
 class ShiftTask(ConfigTask):
