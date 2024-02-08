@@ -152,19 +152,29 @@ create_analysis() {
     # queries
     #
 
-    echo_color bright "start creating columnflow-based analysis in local directory"
-    echo
+    if [ "$1" == "test" ]; then
+        echo_color bright "running in test mode"
+        echo
+        export_var "cf_analysis_name" "test_analysis"
+        export_var "cf_module_name" "test"
+        export_var "cf_short_name" "test"
+        export_var "cf_analysis_flavor" "cms_minimal"
+        export_var "cf_use_ssh" "True"
+    else
+        echo_color bright "start creating columnflow-based analysis in local directory"
+        echo
 
-    query_input "cf_analysis_name" "Name of the analysis" "-"
-    echo
-    query_input "cf_module_name" "Name of the python module in the analysis directory" "$( str_lc "${cf_analysis_name}" )"
-    echo
-    query_input "cf_short_name" "Short name for environment variables, pre- and suffixes" "${cf_module_name}"
-    echo
-    query_input "cf_analysis_flavor" "The flavor of the analysis to setup" "cms_minimal" "cms_minimal"
-    echo
-    query_input "cf_use_ssh" "Use ssh for git submodules" "True" "True,False"
-    echo
+        query_input "cf_analysis_name" "Name of the analysis" "-"
+        echo
+        query_input "cf_module_name" "Name of the python module in the analysis directory" "$( str_lc "${cf_analysis_name}" )"
+        echo
+        query_input "cf_short_name" "Short name for environment variables, pre- and suffixes" "${cf_module_name}"
+        echo
+        query_input "cf_analysis_flavor" "The flavor of the analysis to setup" "cms_minimal" "cms_minimal"
+        echo
+        query_input "cf_use_ssh" "Use ssh for git submodules" "True" "True,False"
+        echo
+    fi
 
     # changes
     export cf_short_name="${cf_short_name%_}"
