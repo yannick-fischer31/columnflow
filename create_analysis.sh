@@ -152,14 +152,14 @@ create_analysis() {
     # queries
     #
 
-    if [ "$1" == "test" ]; then
+    if [ "$TESTENV" == "1" ]; then
         echo_color bright "running in test mode"
         echo
         export_var "cf_analysis_name" "test_analysis"
         export_var "cf_module_name" "test"
         export_var "cf_short_name" "test"
         export_var "cf_analysis_flavor" "cms_minimal"
-        export_var "cf_use_ssh" "True"
+        export_var "cf_use_ssh" "False"
     else
         echo_color bright "start creating columnflow-based analysis in local directory"
         echo
