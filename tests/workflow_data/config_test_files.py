@@ -43,7 +43,7 @@ campaign_cms_opendata_2015_agc = cpn = Campaign(
 #
 
 # load the agc file list
-# located at https://raw.githubusercontent.com/iris-hep/analysis-grand-challenge/main/analyses/cms-open-data-ttbar/nanoaod_inputs.json
+# located at https://raw.githubusercontent.com/iris-hep/analysis-grand-challenge/main/analyses/cms-open-data-ttbar/nanoaod_inputs.json  # noqa
 agc_files_url = "https://raw.githubusercontent.com/iris-hep/analysis-grand-challenge/main/analyses/cms-open-data-ttbar/nanoaod_inputs.json"  # noqa
 response = urlopen(agc_files_url)
 agc_files = json.loads(response.read().decode("utf-8"))
@@ -64,7 +64,9 @@ def get_dataset_lfns(
         for data in agc_files[agc_process][agc_syst]["files"]
     ]
 
+
 get_dataset_lfns_remote_fs = lambda dataset_inst: campaign_cms_opendata_2015_agc.x.wlcg_fs
+
 
 def get_dataset_info(process: str, syst: str) -> dict[str, list[str] | int]:
     # interpret the dataset "key" as the fragment after "/store/user/AGC/nanoAOD" of the first file
