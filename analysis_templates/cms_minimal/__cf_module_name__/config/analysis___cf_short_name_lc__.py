@@ -73,8 +73,9 @@ def add_config(
     config_id: int | None = None,
     limit_dataset_files: int | None = None,
     get_dataset_lfns: Callable | None = None,
-    dataset_names: list[str] | None = None,
     get_dataset_lfns_remote_fs: Callable | None = None,
+    dataset_names: list[str] | None = None,
+    process_names: list[str] | None = None,
 ) -> od.Config:
 
     # get all root processes
@@ -87,11 +88,12 @@ def add_config(
     year = campaign.x.year
 
     # add processes we are interested in
-    process_names = [
-        "data",
-        "tt",
-        "st",
-    ]
+    if not process_names:
+        process_names = [
+            "data",
+            "tt",
+            "st",
+        ]
     for process_name in process_names:
         # add the process
         proc = cfg.add_process(procs.get(process_name))
