@@ -8,13 +8,18 @@ as used by the Analysis Grand Challenge.
 from __future__ import annotations
 
 import os
+import sys
 import json
 import re
 
 from order import Campaign, DatasetInfo, Dataset, Shift
 
-import processes as procs
 
+thisdir = os.path.realpath(os.path.dirname(__file__))
+if thisdir not in sys.path:
+    sys.path.append(thisdir)
+import processes as procs
+from urllib.request import urlopen
 
 #
 # campaign
@@ -38,10 +43,10 @@ campaign_cms_opendata_2015_agc = cpn = Campaign(
 #
 
 # load the agc file list
-# located at https://raw.githubusercontent.com/iris-hep/analysis-grand-challenge/main/analyses/cms-open-data-ttbar/nanoaod_inputs.json  # noqa
-agc_files_path = "./nanoaod_inputs.json"
-with open(os.path.expandvars(agc_files_path), "r") as f:
-    agc_files = json.load(f)
+# located at https://raw.githubusercontent.com/iris-hep/analysis-grand-challenge/main/analyses/cms-open-data-ttbar/nanoaod_inputs.json
+agc_files_url = "https://raw.githubusercontent.com/iris-hep/analysis-grand-challenge/main/analyses/cms-open-data-ttbar/nanoaod_inputs.json"  # noqa
+response = urlopen(agc_files_url)
+agc_files = json.loads(response.read().decode("utf-8"))
 
 
 # customization of the lfn retrieval in GetDatasetLFNs to detect files in the agc file list
@@ -59,9 +64,7 @@ def get_dataset_lfns(
         for data in agc_files[agc_process][agc_syst]["files"]
     ]
 
-
 get_dataset_lfns_remote_fs = lambda dataset_inst: campaign_cms_opendata_2015_agc.x.wlcg_fs
-
 
 def get_dataset_info(process: str, syst: str) -> dict[str, list[str] | int]:
     # interpret the dataset "key" as the fragment after "/store/user/AGC/nanoAOD" of the first file
@@ -135,3 +138,8 @@ cpn.add_dataset(
     },
     **get_dataset_info("wjets", "nominal"),
 )
+
+all_datasets = [x[0] for x in cpn.datasets.keys()]
+all_processes = list()
+for d in cpn.datasets.values():
+    all_processes += [x.name for x in d.processes]
