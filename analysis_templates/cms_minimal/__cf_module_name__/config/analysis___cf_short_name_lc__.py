@@ -65,6 +65,7 @@ from cmsdb.campaigns.run2_2017_nano_v9 import campaign_run2_2017_nano_v9
 # copy the campaign
 # (creates copies of all linked datasets, processes, etc. to allow for encapsulated customization)
 
+
 def add_config(
     analysis: od.Analysis,
     campaign: od.Campaign,
@@ -355,9 +356,10 @@ def add_config(
         x_title=r"Jet 1 $p_{T}$",
     )
 
+
 add_config(
     ana,
     campaign_run2_2017_nano_v9.copy(),
     config_name=campaign_run2_2017_nano_v9.name,
-    config_id=1
+    config_id=1,
 )
