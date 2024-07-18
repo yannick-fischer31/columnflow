@@ -351,8 +351,8 @@ def prepare_style_config(
         yscale = "log" if variable_inst.log_y else "linear"
 
     xlim = (
-        variable_inst.x("x_min", variable_inst.x_min),
-        variable_inst.x("x_max", variable_inst.x_max),
+        variable_inst.x("x_min", variable_inst.x("x_min", variable_inst.x_min)),
+        variable_inst.x("x_max", variable_inst.x("x_max", variable_inst.x_max)),
     )
 
     style_config = {
