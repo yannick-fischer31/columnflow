@@ -20,6 +20,7 @@ od = maybe_import("order")
 
 logger = law.logger.get_logger(__name__)
 
+
 def draw_error_bands(
     ax: plt.Axes,
     h: hist.Hist,
@@ -158,7 +159,7 @@ def draw_errorbars(
 
 def binom_int(num, den, confint=0.68):
     from scipy.stats import beta
-    quant = (1 - confint)/ 2.
+    quant = (1 - confint) / 2.
     low = beta.ppf(quant, num, den - num + 1)
     high = beta.ppf(1 - quant, num + 1, den - num)
     return (np.nan_to_num(low), np.where(np.isnan(high), 1, high))
@@ -175,8 +176,8 @@ def draw_efficiency(
     values = h.values()
     bins = h.axes[0].edges
 
-    efficiency = np.nan_to_num(values/norm)
-    
+    efficiency = np.nan_to_num(values / norm)
+
     if np.any(efficiency > 1):
         logger.warning(f"Some efficiencies for {kwargs['label']} are greater than 1, errorbars going below zero are capped at zero")
     elif np.any(efficiency < 0):
@@ -186,23 +187,26 @@ def draw_efficiency(
     band_low, band_high = binom_int(values, norm)
     error_low = np.asarray(efficiency - band_low)
     error_high = np.asarray(band_high - efficiency)
-    
+
     # removing large errors in empty bins
     error_low[error_low == 1] = 0
     error_high[error_high == 1] = 0
-    
-    # removing negative errors 
+
+    # removing negative errors
     error_low[error_low < 0] = 0
     error_high[error_high < 0] = 0
 
     # stacking errors
-    errors = np.concatenate((error_low.reshape(error_low.shape[0], 1), error_high.reshape(error_high.shape[0], 1)), axis=1)
+    errors = np.concatenate(
+        (error_low.reshape(error_low.shape[0], 1), error_high.reshape(error_high.shape[0], 1)), 
+        axis=1
+        )
     errors = errors.T
-    
-    ax.errorbar(x=bins[:-1], y=efficiency, yerr=errors, fmt='o-', label=kwargs["label"])
 
-    ax.set_xlabel('Bin')
-    ax.set_ylabel('Counts')
+    ax.errorbar(x=bins[:-1], y=efficiency, yerr=errors, fmt="o-", label=kwargs["label"])
+
+    ax.set_xlabel("Bin")
+    ax.set_ylabel("Counts")
     ax.set_ylim(0, 1)
     ax.legend()
 
@@ -212,7 +216,7 @@ def draw_hist_twin(
     h: hist.Hist,
     norm: float | Sequence | np.ndarray = 1.0,
     **kwargs,
-) -> None: 
+) -> None:
     ax2 = ax.twinx()
     draw_hist(ax2, h, norm, **kwargs)
     bin_widths = h.axes[0].widths
@@ -260,7 +264,10 @@ def plot_all(
     # available plot methods mapped to their names
     plot_methods = {
         func.__name__: func
-        for func in [draw_error_bands, draw_stack, draw_hist, draw_profile, draw_errorbars, draw_efficiency, draw_hist_twin]
+        for func in [
+            draw_error_bands, draw_stack, draw_hist, draw_profile, draw_hist_twin,
+            draw_errorbars, draw_efficiency
+            ]
     }
 
     plt.style.use(mplhep.style.CMS)
