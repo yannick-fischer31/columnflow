@@ -238,7 +238,10 @@ class CreateDatacards(
 
             # forward objects to the datacard writer
             outputs = self.output()
-            writer = DatacardWriter(self.inference_model_inst, {cat_obj.name: hists})
+            writer = getattr(
+                "datacard_writer", self.inference_model_inst,
+                DatacardWriter(self.inference_model_inst, {cat_obj.name: hists})
+            )
             with outputs["card"].localize("w") as tmp_card, outputs["shapes"].localize("w") as tmp_shapes:
                 writer.write(tmp_card.path, tmp_shapes.path, shapes_path_ref=outputs["shapes"].basename)
 
