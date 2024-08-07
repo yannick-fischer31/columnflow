@@ -93,7 +93,14 @@ class DatacardWriter(object):
         separators.add("counts")
 
         # shape lines
-        blocks.shapes = [("shapes", "*", "*", shapes_path_ref, nom_pattern, syst_pattern)]
+        if isinstance(nom_pattern, str) and isinstance(syst_pattern, str):
+            blocks.shapes = [("shapes", "*", "*", shapes_path_ref, nom_pattern, syst_pattern)]
+        elif isinstance(nom_pattern, DotDict) and isinstance(syst_pattern, DotDict):
+            blocks.shapes = [
+                ("shapes", proc, cat, shapes_path_ref, nom, syst_pattern.get(cat, dict()).get(proc, ""))
+                    for cat, cat_dict in nom_pattern.items()
+                    for proc, nom in cat_dict.items()
+            ]
         separators.add("shapes")
 
         # observations
