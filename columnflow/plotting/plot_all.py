@@ -179,9 +179,13 @@ def draw_efficiency(
     efficiency = np.nan_to_num(values / norm)
 
     if np.any(efficiency > 1):
-        logger.warning(f"Some efficiencies for {kwargs['label']} are greater than 1, errorbars going below zero are capped at zero")
+        logger.warning(
+            f"Some efficiencies for {kwargs['label']} are greater than 1, errorbars are capped at zero"
+            )
     elif np.any(efficiency < 0):
-        logger.warning(f"Some efficiencies for {kwargs['label']} are less than 0, errorbars going below zero are capped at zero")
+        logger.warning(
+            f"Some efficiencies for {kwargs['label']} are less than 0, errorbars are capped at zero"
+            )
 
     # getting error bars
     band_low, band_high = binom_int(values, norm)
@@ -198,9 +202,9 @@ def draw_efficiency(
 
     # stacking errors
     errors = np.concatenate(
-        (error_low.reshape(error_low.shape[0], 1), error_high.reshape(error_high.shape[0], 1)), 
-        axis=1
-        )
+        (error_low.reshape(error_low.shape[0], 1), error_high.reshape(error_high.shape[0], 1)),
+        axis=1,
+    )
     errors = errors.T
 
     ax.errorbar(x=bins[:-1], y=efficiency, yerr=errors, fmt="o-", label=kwargs["label"])
@@ -266,8 +270,8 @@ def plot_all(
         func.__name__: func
         for func in [
             draw_error_bands, draw_stack, draw_hist, draw_profile, draw_hist_twin,
-            draw_errorbars, draw_efficiency
-            ]
+            draw_errorbars, draw_efficiency,
+        ]
     }
 
     plt.style.use(mplhep.style.CMS)
