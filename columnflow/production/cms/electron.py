@@ -27,6 +27,7 @@ ak = maybe_import("awkward")
     get_electron_file=(lambda self, external_files: external_files.electron_sf),
     # function to determine the electron weight config
     get_electron_config=(lambda self: self.config_inst.x.electron_sf_names),
+    weight_name="electron_weight",
 )
 def electron_weights(
     self: Producer,
@@ -82,7 +83,7 @@ def electron_weights(
         weight = ak.prod(sf, axis=1, mask_identity=False)
 
         # store it
-        events = set_ak_column(events, f"electron_weight{postfix}", weight, value_type=np.float32)
+        events = set_ak_column(events,  f"{self.weight_name}{postfix}", weight, value_type=np.float32)
 
     return events
 
@@ -119,3 +120,7 @@ def electron_weights_setup(
         raise Exception(
             f"unsuppprted electron sf corrector version {self.electron_sf_corrector.version}",
         )
+@electron_weights.init
+def electron_weights_init(self: Producer, **kwargs) -> None:
+    weight_name = self.weight_name
+    self.produces |= {weight_name, f"{weight_name}_up", f"{weight_name}_down"}

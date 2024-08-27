@@ -147,9 +147,11 @@ def btag_weights(
 
     # get the total number of jets in the chunk
     n_jets_all = ak.sum(ak.num(events.Jet, axis=1))
+    print("Number of jets",n_jets_all)
 
     # check that the b-tag score is not negative for all jets considered in the SF calculation
     discr = events.Jet[self.btag_config.discriminator]
+    print(discr)
     jets_negative_b_score = discr[jet_mask] < 0
     if ak.any(jets_negative_b_score):
         msg_func = {
@@ -203,11 +205,19 @@ def btag_weights(
         }
 
         # get the flat scale factors
+        print("Getting btagging scale factors:")
+        for inp in self.btag_sf_corrector.inputs:
+            print(inp.name)
+            print(inp)
+            print(variable_map[inp.name])
+        # for i in range(200):
+        #     print(variable_map["pt"][i])
+        print("parsing input arguments for btag_sf_corrector")
         sf_flat = self.btag_sf_corrector(*(
             variable_map[inp.name]
             for inp in self.btag_sf_corrector.inputs
         ))
-
+        print("Flat scale factors", sf_flat)
         # insert them into an array of ones whose length corresponds to the total number of jets
         sf_flat_all = np.ones(n_jets_all, dtype=np.float32)
         if jet_mask is Ellipsis:
@@ -217,10 +227,10 @@ def btag_weights(
             if flavor_mask is not Ellipsis:
                 indices = np.where(indices)[0][flavor_mask]
         sf_flat_all[indices] = sf_flat
-
+        print(sf_flat_all)
         # enforce the correct shape and create the product over all jets per event
         sf = layout_ak_array(sf_flat_all, events.Jet.pt)
-
+        print(sf)
         if negative_b_score_action == "remove":
             # set the weight to 0 for jets with negative btag score
             sf = ak.where(jets_negative_b_score, 0, sf)
@@ -276,6 +286,7 @@ def btag_weights_init(self: Producer) -> None:
     #   3. when any other shift is requested, only create the central weight column
     self.btag_config: BTagSFConfig = self.get_btag_config()
     self.uses.add(f"Jet.{self.btag_config.discriminator}")
+
 
     shift_inst = getattr(self, "global_shift_inst", None)
     if not shift_inst:
@@ -342,3 +353,165 @@ def btag_weights_setup(
         self.get_btag_file(bundle.files).load(formatter="gzip").decode("utf-8"),
     )
     self.btag_sf_corrector = correction_set[self.btag_config.correction_set]
+
+
+@dataclass
+class SplitBTagSFConfig:
+    correction_set: tuple[str, str]
+    discriminator: str
+    corrector_kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+class split_btag_weights(btag_weights):
+
+    get_btag_config = lambda self: self.config_inst.x.btag_sf
+    # from IPython import embed; embed()
+
+    def init_func(self) -> None:
+        self.btag_config: SplitBTagSFConfig = self.get_btag_config()
+
+        # from IPython import embed; embed()
+
+        self.uses.add(f"Jet.{self.btag_config.discriminator}")
+        self.produces.add("btag_weight")
+
+        self.jec_source = None
+        self.shift_is_known_jec_source = False
+        self.btag_uncs = {}
+        # super().init_func()
+        
+
+    def setup_func(self, reqs: dict, inputs: dict, reader_targets: InsertableDict,) -> None:
+        bundle = reqs["external_files"]
+        # from IPython import embed; embed()
+        # create the btag sf corrector
+        import correctionlib
+        correctionlib.highlevel.Correction.__call__ = correctionlib.highlevel.Correction.evaluate
+        correction_set = correctionlib.CorrectionSet.from_string(
+            self.get_btag_file(bundle.files).load(formatter="gzip").decode("utf-8"),
+        )
+        self.btag_sf_corrector = SplitCorrector(
+            *(correction_set[cs] for cs in self.btag_config.correction_set)
+        )
+
+
+class FakeInput(object):
+
+    def __init__(self, *args, name="", **kwargs):
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
+    @name.setter
+    def name(self, new_name):
+        if isinstance(new_name, str):
+            self._name = new_name
+        else:
+            raise ValueError(f"Input für FakeInput.name must be string, got {type(new_name)}")
+
+
+class SplitCorrector(object):
+
+    def __init__(self, corrector_incl, corrector_comb) -> None:
+        self.corrector_incl = corrector_incl
+        self.corrector_comb = corrector_comb
+
+        self.flavor_index = next(i for i, inp in enumerate(self.inputs) if inp.name == "flavor")
+        self.pt_index = next(i for i, inp in enumerate(self.inputs) if inp.name == "pt")
+        self.discriminant_index = next(i for i, inp in enumerate(self.inputs) if inp.name == "discriminant")
+        # from IPython import embed; embed(header="in SplitCorrector.__init__")
+    
+    @property
+    def inputs(self) -> list:
+        _inputs = self.corrector_incl.inputs
+        print(self.corrector_incl.inputs)
+        # _inputs.append("discriminant")
+        # from IPython import embed; embed(header="in SplitCorrector.inputs")
+
+        return _inputs + [FakeInput(name="discriminant")]
+    
+    def __call__(self, *args, **kwargs):
+        light_mask = args[self.flavor_index] <= 3
+        heavy_mask = args[self.flavor_index] >= 4
+        discriminant = args[self.discriminant_index]
+        # define b tagging working point TODO: move this to config
+        threshold = 0.3040
+        tagged_mask = args[self.discriminant_index] >= threshold
+        non_tagged_mask = args[self.discriminant_index] <= threshold
+
+        # Build possible combinations
+
+        light_non_tagged = non_tagged_mask & light_mask
+        heavy_non_tagged = non_tagged_mask & heavy_mask
+        heavy_tagged = tagged_mask & heavy_mask
+        light_tagged = tagged_mask & light_mask
+
+        # from IPython import embed; embed(header="in SplitCorrector.__call__")
+
+        import json
+        json_path = "/afs/desy.de/user/f/fischery/nfs/2HDM/AZH/azh/histogram_data.json"
+        with open(json_path, 'r') as file:
+            btagging_eff = json.load(file)
+        
+        # prepare full jet array
+        flav_eff = np.empty(len(light_mask), dtype=object)
+        pt_eff = np.ones(len(light_mask), dtype=int)
+        sf_eff = np.ones(len(light_mask), dtype=np.float32)
+        jet_sfs = np.ones(len(light_mask), dtype=np.float32)
+
+        flav_eff[args[self.flavor_index] <= 3] = 'BTagMCEffFlavUDSGEff;1'
+        flav_eff[args[self.flavor_index] == 4] = 'BTagMCEffFlavCEff;1'
+        flav_eff[args[self.flavor_index] == 5] = 'BTagMCEffFlavBEff;1'
+
+        pt_eff[args[self.pt_index] > 0] = 0
+        pt_eff[args[self.pt_index] > 30] = 1
+        pt_eff[args[self.pt_index] > 50] = 2
+        pt_eff[args[self.pt_index] > 70] = 3
+        pt_eff[args[self.pt_index] > 100] = 4
+        pt_eff[args[self.pt_index] > 140] = 5
+        pt_eff[args[self.pt_index] > 200] = 6
+        pt_eff[args[self.pt_index] > 300] = 7
+        pt_eff[args[self.pt_index] > 600] = 8
+
+        # from IPython import embed; embed(header="in SplitCorrector.__call__")
+        
+        for i in range(len(light_mask)):
+            sf_eff[i] = btagging_eff[flav_eff[i]]["bins"][pt_eff[i]]["content"]
+
+
+        jet_sfs[light_non_tagged] = (1 - sf_eff[light_non_tagged]*self.corrector_incl(*(
+            args[i] if isinstance(args[i], str) else (args[i])[light_non_tagged]
+            for i in range(len(args)-1)
+        )))/(1-sf_eff[light_non_tagged])
+
+        jet_sfs[light_tagged] = (self.corrector_incl(*(
+            args[i] if isinstance(args[i], str) else (args[i])[light_tagged]
+            for i in range(len(args)-1)
+        )))
+
+        jet_sfs[heavy_tagged] = self.corrector_comb(*(
+            args[i] if isinstance(args[i], str) else (args[i])[heavy_tagged]
+            for i in range(len(args)-1)
+        ))
+
+        jet_sfs[heavy_non_tagged] = (1-sf_eff[heavy_non_tagged]*self.corrector_comb(*(
+            args[i] if isinstance(args[i], str) else (args[i])[heavy_non_tagged]
+            for i in range(len(args)-1)
+        )))/(1-sf_eff[heavy_non_tagged])
+
+        # print("light")
+        # for i in range(10):
+        #     print(self.corrector_incl(*(args[i] if isinstance(args[i], str) else (args[i])[light_mask] for i in range(len(args)-1)))[i])
+        # print("light weighed")
+        # for i in range(10):
+        #     print(((1-0.01*self.corrector_incl(*(args[i] if isinstance(args[i], str) else (args[i])[light_mask]for i in range(len(args)-1))))/(1-0.01))[i])
+        # print("heavy")
+        # for i in range(10):
+        #     print((self.corrector_comb(*(args[i] if isinstance(args[i], str) else (args[i])[heavy_mask] for i in range(len(args)-1))))[i])
+        # print("product")
+        # for i in range(10):    
+        #     print(jet_sfs[i])
+        
+        
+        return jet_sfs
