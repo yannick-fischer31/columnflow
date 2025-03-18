@@ -3426,6 +3426,11 @@ class ChunkedIOHandler(object):
             # open the source
             obj, n = source_handler.open(source, open_options=open_options, read_columns=read_columns)
             # check entries
+            print(source)
+            print(obj)
+            print(self.n_entries)
+            print(n)
+            print(i)
             if i == 0:
                 self.n_entries = n
             elif n != self.n_entries:

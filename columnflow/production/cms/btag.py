@@ -413,8 +413,8 @@ class FakeInput(object):
 
 class SplitCorrector(object):
 
-    def __init__(self, corrector_incl, corrector_comb) -> None:
-        self.corrector_incl = corrector_incl
+    def __init__(self, corrector_light, corrector_comb) -> None:
+        self.corrector_light = corrector_light
         self.corrector_comb = corrector_comb
 
         self.flavor_index = next(i for i, inp in enumerate(self.inputs) if inp.name == "flavor")
@@ -424,8 +424,8 @@ class SplitCorrector(object):
     
     @property
     def inputs(self) -> list:
-        _inputs = self.corrector_incl.inputs
-        print(self.corrector_incl.inputs)
+        _inputs = self.corrector_light.inputs
+        print(self.corrector_light.inputs)
         # _inputs.append("discriminant")
         # from IPython import embed; embed(header="in SplitCorrector.inputs")
 
@@ -450,7 +450,7 @@ class SplitCorrector(object):
         # from IPython import embed; embed(header="in SplitCorrector.__call__")
 
         import json
-        json_path = "/afs/desy.de/user/f/fischery/nfs/2HDM/AZH/azh/histogram_data.json"
+        json_path = "/data/dust/user/fischery/2HDM/AZH/azh/histogram_data.json"
         with open(json_path, 'r') as file:
             btagging_eff = json.load(file)
         
@@ -480,12 +480,12 @@ class SplitCorrector(object):
             sf_eff[i] = btagging_eff[flav_eff[i]]["bins"][pt_eff[i]]["content"]
 
 
-        jet_sfs[light_non_tagged] = (1 - sf_eff[light_non_tagged]*self.corrector_incl(*(
+        jet_sfs[light_non_tagged] = (1 - sf_eff[light_non_tagged]*self.corrector_light(*(
             args[i] if isinstance(args[i], str) else (args[i])[light_non_tagged]
             for i in range(len(args)-1)
         )))/(1-sf_eff[light_non_tagged])
 
-        jet_sfs[light_tagged] = (self.corrector_incl(*(
+        jet_sfs[light_tagged] = (self.corrector_light(*(
             args[i] if isinstance(args[i], str) else (args[i])[light_tagged]
             for i in range(len(args)-1)
         )))

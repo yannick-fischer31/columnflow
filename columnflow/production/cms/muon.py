@@ -83,6 +83,7 @@ def muon_weights(
             "ValType": syst,  # syst key in 2017
         }
         inputs = [variable_map_syst[inp.name] for inp in self.muon_sf_corrector.inputs]
+        print(inputs)
         sf_flat = self.muon_sf_corrector(*inputs)
 
         # add the correct layout to it
@@ -122,6 +123,10 @@ def muon_weights_setup(
         self.get_muon_file(bundle.files).load(formatter="gzip").decode("utf-8"),
     )
     corrector_name, self.year = self.get_muon_config()
+    print("-----------------")
+    print(corrector_name)
+    print(correction_set)
+    print(correction_set[corrector_name])
     self.muon_sf_corrector = correction_set[corrector_name]
 
     # check versions

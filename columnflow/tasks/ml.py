@@ -203,12 +203,14 @@ class PrepareMLEvents(
             [*files, *reader_targets.values()],
             mode="r",
         ) as inps:
+            # __import__("IPython").embed()
             for (events, *columns), pos in self.iter_chunked_io(
                 [inp.path for inp in inps],
                 source_type=len(files) * ["awkward_parquet"] + [None] * len(reader_targets),
                 read_columns=(len(files) + len(reader_targets)) * [read_columns],
             ):
                 n_events += len(events)
+                # __import__("IPython").embed()
 
                 # optional check for overlapping inputs
                 if self.check_overlapping_inputs:

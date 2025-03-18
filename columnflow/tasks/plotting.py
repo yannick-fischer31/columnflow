@@ -139,6 +139,7 @@ class PlotVariablesBase(
 
             # there should be hists to plot
             if not hists:
+                # from IPython import embed; embed()
                 raise Exception(
                     "no histograms found to plot; possible reasons:\n"
                     "  - requested variable requires columns that were missing during histogramming\n"
