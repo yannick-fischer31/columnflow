@@ -232,12 +232,13 @@ def jec(
     events = set_ak_column_f32(events, "Jet.pt_raw", events.Jet.pt * (1 - events.Jet.rawFactor))
     events = set_ak_column_f32(events, "Jet.mass_raw", events.Jet.mass * (1 - events.Jet.rawFactor))
 
-    def correct_jets(pt, area, eta, rho, evaluator_key="jec"):
+    def correct_jets(pt, area, eta, phi, rho, evaluator_key="jec"):
         # variable naming convention
         variable_map = {
             "JetA": area,
             "JetEta": eta,
             "JetPt": pt,
+            "JetPhi": phi,
             "Rho": ak.values_astype(rho, np.float32),
         }
 
@@ -270,6 +271,7 @@ def jec(
         jec_factors_subset_type1_met = correct_jets(
             pt=events.Jet.pt_raw,
             eta=events.Jet.eta,
+            phi=events.Jet.phi,
             area=events.Jet.area,
             rho=rho,
             evaluator_key="jec_subset_type1_met",
@@ -291,6 +293,7 @@ def jec(
     jec_factors = correct_jets(
         pt=events.Jet.pt_raw,
         eta=events.Jet.eta,
+        phi=events.Jet.phi,
         area=events.Jet.area,
         rho=rho,
         evaluator_key="jec",
